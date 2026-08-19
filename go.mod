@@ -1,4 +1,4 @@
-module enmity/patcher
+module github.com/Retribution-Mod/retribution-patcher
 
 go 1.20
 
