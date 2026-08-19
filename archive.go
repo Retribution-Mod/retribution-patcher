@@ -27,7 +27,7 @@ func extract() {
 			exit()
 		}
 
-		logger.Info("Previously extracted directory cleaned up. ")
+		logger.Info("Previously extracted directory cleaned up.")
 	}
 
 	err := format.Unarchive(ipa, directory)
@@ -64,23 +64,23 @@ func archive() {
 		exit()
 	}
 
-	if _, err := os.Stat("Enmity.ipa"); err == nil {
-		logger.Debug("Detected previous Enmity IPA, cleaning it up...")
+	if _, err := os.Stat(output); err == nil {
+		logger.Debugf("Detected previous output \"%s\", cleaning it up...", output)
 
-		err := os.Remove("Enmity.ipa")
+		err = os.Remove(output)
 		if err != nil {
-			logger.Errorf("Failed to clean up previous Enmity IPA: %s", err)
+			logger.Errorf("Failed to clean up previous output: %s", err)
 			exit()
 		}
 
-		logger.Info("Previous Enmity IPA cleaned up.")
+		logger.Info("Previous output cleaned up.")
 	}
 
-	err = os.Rename(zip, "Enmity.ipa")
+	err = os.Rename(zip, output)
 	if err != nil {
-		logger.Errorf("Failed to rename \"%s\": %v", zip, err)
+		logger.Errorf("Failed to rename \"%s\" to \"%s\": %v", zip, output, err)
 		exit()
 	}
 
-	logger.Infof("Successfully archived \"%s\" to \"Enmity.ipa\"", zip)
+	logger.Infof("Successfully archived \"%s\" to \"%s\"", zip, output)
 }

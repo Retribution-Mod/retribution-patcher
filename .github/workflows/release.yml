@@ -1,0 +1,38 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Download dependencies
+        run: go mod tidy
+
+      - name: Build macOS binaries
+        run: |
+          GOOS=darwin GOARCH=amd64 go build -o retribution-patcher-mac-amd64
+          GOOS=darwin GOARCH=arm64 go build -o retribution-patcher-mac-arm64
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            retribution-patcher-mac-amd64
+            retribution-patcher-mac-arm64
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

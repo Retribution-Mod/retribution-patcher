@@ -21,17 +21,52 @@ var (
 	directory string
 	assets    string
 	ipa       string
+	appName   string
+	iconURL   string
+	iconZip   string
+	output    string
 )
 
 func main() {
 	app := &cli.App{
-		Name:  "patcher-ios",
-		Usage: "Patches the Discord IPA with icons, utilities and features to ease usability.",
+		Name:  "retribution-patcher",
+		Usage: "Patches the Discord IPA with Retribution icons and sideloading fixes.",
+		Flags: []cli.Flag{
+			&cli.StringFlag{
+				Name:        "name",
+				Usage:       "Display name for the patched app",
+				Value:       "Retribution",
+				Destination: &appName,
+			},
+			&cli.StringFlag{
+				Name:        "icon-url",
+				Usage:       "URL to an icon zip archive",
+				Value:       "",
+				Destination: &iconURL,
+			},
+			&cli.StringFlag{
+				Name:        "icon-zip",
+				Usage:       "Local path to an icon zip archive",
+				Value:       "",
+				Destination: &iconZip,
+			},
+			&cli.StringFlag{
+				Name:        "output",
+				Usage:       "Output IPA file name",
+				Value:       "Retribution.ipa",
+				Destination: &output,
+			},
+		},
 		Action: func(context *cli.Context) error {
 			ipa = context.Args().Get(0)
 
 			if ipa == "" {
 				logger.Error("Please provide a path to the IPA.")
+				os.Exit(1)
+			}
+
+			if iconZip == "" && iconURL == "" {
+				logger.Error("Please provide an icon source with --icon-zip or --icon-url.")
 				os.Exit(1)
 			}
 

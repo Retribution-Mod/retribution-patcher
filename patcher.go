@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -30,8 +31,8 @@ func setSupportedDevices() {
 func setAppName() {
 	logger.Debug("Setting app name...")
 
-	info["CFBundleName"] = "Enmity"
-	info["CFBundleDisplayName"] = "Enmity"
+	info["CFBundleName"] = appName
+	info["CFBundleDisplayName"] = appName
 
 	logger.Info("App name set.")
 }
@@ -46,19 +47,34 @@ func setFileAccess() {
 }
 
 func setIcons() {
-	logger.Debug("Downloading app icons...")
+	logger.Debug("Preparing app icons...")
 
 	icons := filepath.Join(assets, "icons.zip")
-	download("https://enmity-mod.github.io/assets/icons.zip", icons)
 
-	logger.Info("Downloaded app icons.")
+	if iconZip != "" {
+		icons = iconZip
+		logger.Infof("Using local icon zip: %s", icons)
+	} else {
+		download(iconURL, icons)
+	}
 
 	logger.Debug("Applying app icons...")
 
-	info["CFBundleIcons"].(map[string]interface{})["CFBundlePrimaryIcon"].(map[string]interface{})["CFBundleIconName"] = "EnmityIcon"
-	info["CFBundleIcons"].(map[string]interface{})["CFBundlePrimaryIcon"].(map[string]interface{})["CFBundleIconFiles"] = []string{"EnmityIcon60x60"}
-	info["CFBundleIcons~ipad"].(map[string]interface{})["CFBundlePrimaryIcon"].(map[string]interface{})["CFBundleIconName"] = "EnmityIcon"
-	info["CFBundleIcons~ipad"].(map[string]interface{})["CFBundlePrimaryIcon"].(map[string]interface{})["CFBundleIconFiles"] = []string{"EnmityIcon60x60", "EnmityIcon76x76"}
+	iconName := appName + "Icon"
+
+	if bundleIcons, ok := info["CFBundleIcons"].(map[string]interface{}); ok {
+		if primary, ok := bundleIcons["CFBundlePrimaryIcon"].(map[string]interface{}); ok {
+			primary["CFBundleIconName"] = iconName
+			primary["CFBundleIconFiles"] = []string{iconName + "60x60"}
+		}
+	}
+
+	if bundleIconsIpad, ok := info["CFBundleIcons~ipad"].(map[string]interface{}); ok {
+		if primary, ok := bundleIconsIpad["CFBundlePrimaryIcon"].(map[string]interface{}); ok {
+			primary["CFBundleIconName"] = iconName
+			primary["CFBundleIconFiles"] = []string{iconName + "60x60", iconName + "76x76"}
+		}
+	}
 
 	zip := archiver.Zip{OverwriteExisting: true}
 	discord := filepath.Join(directory, "Payload", "Discord.app")
