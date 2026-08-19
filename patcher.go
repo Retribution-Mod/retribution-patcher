@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
