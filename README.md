@@ -2,6 +2,7 @@
    <h3>Retribution Patcher</h3>
 
    IPA patcher to rename, change the icon, remove device enforcement and enable file sharing for Discord, to ease sideloading of Retribution.<br />
+   For the resulting IPA and installation instructions, see <a href="https://github.com/Retribution-Mod/retribution-tweak">retribution-tweak</a>. For sideloading, try <a href="https://sidestore.io">SideStore</a> or <a href="https://altstore.io">AltStore</a>.
 </div>
 
 ---
