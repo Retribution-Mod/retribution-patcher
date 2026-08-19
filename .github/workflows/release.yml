@@ -34,6 +34,6 @@ jobs:
 
       - name: Create GitHub Release
         run: |
-          gh release create "$GITHUB_REF_NAME" --generate-notes --title "$GITHUB_REF_NAME" build/* LICENSE
+          gh release create "$GITHUB_REF_NAME" --generate-notes --title "$GITHUB_REF_NAME" build/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
