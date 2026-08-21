@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"io"
 	"net"
@@ -9,6 +10,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"howett.net/plist"
 )
@@ -104,12 +106,20 @@ func saveInfo() {
 	logger.Infof("Saved Info.plist data.")
 }
 
+func isPrivateAddr(addr netip.Addr) bool {
+	if addr.Is4In6() {
+		addr = addr.Unmap()
+	}
+	return !addr.IsGlobalUnicast()
+}
+
 func isPrivateHost(host string) bool {
-	if host == "localhost" {
+	host = strings.Trim(host, "[]")
+	if strings.EqualFold(host, "localhost") {
 		return true
 	}
 	if ip, err := netip.ParseAddr(host); err == nil {
-		return ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast()
+		return isPrivateAddr(ip)
 	}
 	return false
 }
@@ -127,6 +137,7 @@ func validateDownloadURL(rawURL string) error {
 	if err != nil {
 		host = u.Host
 	}
+	host = strings.Trim(host, "[]")
 	if isPrivateHost(host) {
 		return errors.New("URL resolves to a private or loopback address")
 	}
@@ -137,7 +148,7 @@ func validateDownloadURL(rawURL string) error {
 	}
 	for _, ip := range ips {
 		if addr, ok := netip.AddrFromSlice(ip); ok {
-			if addr.IsLoopback() || addr.IsPrivate() || addr.IsLinkLocalUnicast() || addr.IsLinkLocalMulticast() {
+			if isPrivateAddr(addr) {
 				return errors.New("URL resolves to a private or loopback address")
 			}
 		}
@@ -146,13 +157,50 @@ func validateDownloadURL(rawURL string) error {
 	return nil
 }
 
+func safeDialContext(ctx context.Context, network, address string) (net.Conn, error) {
+	host, port, err := net.SplitHostPort(address)
+	if err != nil {
+		return nil, err
+	}
+
+	if isPrivateHost(host) {
+		return nil, errors.New("URL resolves to a private or loopback address")
+	}
+
+	ips, err := net.DefaultResolver.LookupIPAddr(ctx, host)
+	if err != nil {
+		return nil, err
+	}
+
+	dialer := &net.Dialer{}
+	for _, ip := range ips {
+		addr, ok := netip.AddrFromSlice(ip.IP)
+		if !ok || isPrivateAddr(addr) {
+			continue
+		}
+		conn, err := dialer.DialContext(ctx, network, net.JoinHostPort(addr.String(), port))
+		if err == nil {
+			return conn, nil
+		}
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+	}
+
+	return nil, errors.New("URL resolves to a private or loopback address")
+}
+
 func download(rawURL string, path string) {
 	if err := validateDownloadURL(rawURL); err != nil {
 		logger.Errorf("Refusing to download from %s: %v", rawURL, err)
 		exit()
 	}
 
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.Proxy = nil
+	transport.DialContext = safeDialContext
 	client := &http.Client{
+		Transport: transport,
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			if err := validateDownloadURL(req.URL.String()); err != nil {
 				return err
