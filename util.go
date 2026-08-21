@@ -1,8 +1,12 @@
 package main
 
 import (
+	"errors"
 	"io"
+	"net"
 	"net/http"
+	"net/netip"
+	"net/url"
 	"os"
 	"path/filepath"
 
@@ -100,7 +104,66 @@ func saveInfo() {
 	logger.Infof("Saved Info.plist data.")
 }
 
-func download(url string, path string) {
+func isPrivateHost(host string) bool {
+	if host == "localhost" {
+		return true
+	}
+	if ip, err := netip.ParseAddr(host); err == nil {
+		return ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast()
+	}
+	return false
+}
+
+func validateDownloadURL(rawURL string) error {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return err
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return errors.New("only http and https schemes are allowed")
+	}
+
+	host, _, err := net.SplitHostPort(u.Host)
+	if err != nil {
+		host = u.Host
+	}
+	if isPrivateHost(host) {
+		return errors.New("URL resolves to a private or loopback address")
+	}
+
+	ips, err := net.LookupIP(host)
+	if err != nil {
+		return err
+	}
+	for _, ip := range ips {
+		if addr, ok := netip.AddrFromSlice(ip); ok {
+			if addr.IsLoopback() || addr.IsPrivate() || addr.IsLinkLocalUnicast() || addr.IsLinkLocalMulticast() {
+				return errors.New("URL resolves to a private or loopback address")
+			}
+		}
+	}
+
+	return nil
+}
+
+func download(rawURL string, path string) {
+	if err := validateDownloadURL(rawURL); err != nil {
+		logger.Errorf("Refusing to download from %s: %v", rawURL, err)
+		exit()
+	}
+
+	client := &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			if err := validateDownloadURL(req.URL.String()); err != nil {
+				return err
+			}
+			if len(via) >= 10 {
+				return errors.New("too many redirects")
+			}
+			return nil
+		},
+	}
+
 	out, err := os.Create(path)
 
 	if err != nil {
@@ -108,10 +171,10 @@ func download(url string, path string) {
 		exit()
 	}
 
-	res, err := http.Get(url)
+	res, err := client.Get(rawURL)
 
 	if err != nil {
-		logger.Errorf("Failed to download %s to %s %v", url, path, err)
+		logger.Errorf("Failed to download %s to %s %v", rawURL, path, err)
 		exit()
 	}
 
@@ -119,16 +182,16 @@ func download(url string, path string) {
 	defer out.Close()
 
 	if res.StatusCode != http.StatusOK {
-		logger.Errorf("Received bad status while downloading %s: %s", url, res.Status)
+		logger.Errorf("Received bad status while downloading %s: %s", rawURL, res.Status)
 		exit()
 	}
 
 	_, err = io.Copy(out, res.Body)
 
 	if err == nil {
-		logger.Infof("Successfully downloaded \"%s\" to \"%s\".", url, path)
+		logger.Infof("Successfully downloaded \"%s\" to \"%s\".", rawURL, path)
 	} else {
-		logger.Errorf("Failed to write \"%s\" to \"%s\": %v.", url, path, err)
+		logger.Errorf("Failed to write \"%s\" to \"%s\": %v.", rawURL, path, err)
 		exit()
 	}
 }

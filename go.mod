@@ -1,6 +1,6 @@
 module github.com/Retribution-Mod/retribution-patcher
 
-go 1.20
+go 1.25
 
 require (
 	github.com/charmbracelet/log v0.3.1
